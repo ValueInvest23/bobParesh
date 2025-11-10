@@ -262,6 +262,7 @@
 
 import React, { useState, useRef } from 'react';
 import { Download, Plus, Trash2 } from 'lucide-react';
+import InstallPWAButton from './InstallPWAButton';
 
 export default function GoldAppraisalForm() {
   const [formData, setFormData] = useState({
@@ -773,7 +774,7 @@ export default function GoldAppraisalForm() {
         {/* Mobile View */}
         <div className="flex flex-col items-center text-center sm:hidden">
           <h2 className="text-lg font-bold tracking-wide hover:text-gray-300 transition-colors duration-300">
-            VlueWeb
+            Value Web
           </h2>
           <div className="flex justify-center items-center gap-4 mt-1">
             <a
@@ -816,6 +817,7 @@ export default function GoldAppraisalForm() {
           © {new Date().getFullYear()} VlueWeb. All rights reserved.
         </div>
       </footer>
+      <InstallPWAButton position='left'/>
     </>
   );
 }
