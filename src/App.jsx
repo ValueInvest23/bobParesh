@@ -784,18 +784,6 @@ const calculateTotals = () => {
               />
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Certificate Amount (₹)</label>
-            <input
-              type="number"
-              name="certificateAmount"
-              value={formData.certificateAmount}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="Enter certificate amount"
-            />
-          </div>
         </div>
       </div>
 
