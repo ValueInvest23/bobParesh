@@ -282,7 +282,8 @@ export default function GoldAppraisalForm() {
     marketValueAmount: '',
     seventyFivePercent: '',
     advancedValue: '',
-    certificateAmount: ''
+    certificateAmount: '',
+    polytheneNo: '',
   });
 
   const [rows, setRows] = useState([
@@ -305,14 +306,14 @@ export default function GoldAppraisalForm() {
         if (field === 'grossWeight' || field === 'estimatedWeight') {
           const grossWeight = parseFloat(field === 'grossWeight' ? value : updatedRow.grossWeight) || 0;
           const estimatedWeight = parseFloat(field === 'estimatedWeight' ? value : updatedRow.estimatedWeight) || 0;
-          updatedRow.netWeight = (grossWeight - estimatedWeight).toFixed(2);
+          updatedRow.netWeight = (grossWeight - estimatedWeight).toFixed(3);
         }
 
         // Calculate Appraised Value: Net Weight * Market Rate (unchanged)
         if (field === 'netWeight' || field === 'marketRate' || field === 'grossWeight' || field === 'estimatedWeight') {
           const netWeight = parseFloat(updatedRow.netWeight) || 0;
           const marketRate = parseFloat(updatedRow.marketRate) || 0;
-          updatedRow.appraisedValue = (netWeight * marketRate).toFixed(2);
+          updatedRow.appraisedValue = (netWeight * marketRate).toFixed(3);
         }
 
         return updatedRow;
@@ -343,53 +344,64 @@ export default function GoldAppraisalForm() {
     }
   };
 
-  const calculateTotals = () => {
-    const totals = {
-      noOfOrnaments: 0,
-      grossWeight: 0,
-      estimatedWeight: 0,
-      netWeight: 0,
-      appraisedValue: 0,
-      bankAppraisedTotal: 0 // <-- new bank-based total (flat on totals)
-    };
-
-    // parse bank rates once
-    const bankRate18 = parseFloat(formData.bankRetPar18) || 0;
-    const bankRate20 = parseFloat(formData.bankRetPar20) || 0;
-    const bankRate22 = parseFloat(formData.bankRetPar22) || 0;
-
-    let bankSum = 0;
-
-    rows.forEach(row => {
-      totals.noOfOrnaments += parseFloat(row.noOfOrnaments) || 0;
-      totals.grossWeight += parseFloat(row.grossWeight) || 0;
-      totals.estimatedWeight += parseFloat(row.estimatedWeight) || 0;
-      totals.netWeight += parseFloat(row.netWeight) || 0;
-      totals.appraisedValue += parseFloat(row.appraisedValue) || 0;
-
-      // compute bank-based appraisal per row using purity -> netWeight * bankRate
-      const netW = parseFloat(row.netWeight) || 0;
-      let bankRateForRow = 0;
-      if ((row.purity || '18').toString() === '18') bankRateForRow = bankRate18;
-      else if ((row.purity || '18').toString() === '20') bankRateForRow = bankRate20;
-      else if ((row.purity || '18').toString() === '22') bankRateForRow = bankRate22;
-      // bank calc value for this row
-      const bankCalcValue = netW * bankRateForRow;
-      bankSum += bankCalcValue;
-    });
-
-    // keep totals.appraisedValue numeric with 2 decimals
-    totals.noOfOrnaments = +totals.noOfOrnaments;
-    totals.grossWeight = +totals.grossWeight.toFixed(2);
-    totals.estimatedWeight = +totals.estimatedWeight.toFixed(2);
-    totals.netWeight = +totals.netWeight.toFixed(2);
-    totals.appraisedValue = +totals.appraisedValue.toFixed(2);
-
-    // set bankAppraisedTotal fixed to 2 decimals
-    totals.bankAppraisedTotal = +bankSum.toFixed(2);
-
-    return totals;
+const calculateTotals = () => {
+  const totals = {
+    noOfOrnaments: 0,
+    grossWeight: 0,
+    estimatedWeight: 0,
+    netWeight: 0,
+    appraisedValue: 0,
+    bankAppraisedTotal: 0,
+    uniquePurities: "",
+    uniqueMarketRates: "",
   };
+
+  // NEW SETS FOR UNIQUE VALUES
+  const puritySet = new Set();
+  const marketRateSet = new Set();
+
+  const bankRate18 = parseFloat(formData.bankRetPar18) || 0;
+  const bankRate20 = parseFloat(formData.bankRetPar20) || 0;
+  const bankRate22 = parseFloat(formData.bankRetPar22) || 0;
+
+  let bankSum = 0;
+
+  rows.forEach(row => {
+    totals.noOfOrnaments += parseFloat(row.noOfOrnaments) || 0;
+    totals.grossWeight += parseFloat(row.grossWeight) || 0;
+    totals.estimatedWeight += parseFloat(row.estimatedWeight) || 0;
+    totals.netWeight += parseFloat(row.netWeight) || 0;
+    totals.appraisedValue += parseFloat(row.appraisedValue) || 0;
+
+    // --- NEW: COLLECT UNIQUE PURITIES + RATES ---
+    puritySet.add(row.purity);
+    if (row.marketRate) marketRateSet.add(row.marketRate);
+
+    // BANK CALCULATION
+    const netW = parseFloat(row.netWeight) || 0;
+    let bankRateForRow = 0;
+
+    if (row.purity === "18") bankRateForRow = bankRate18;
+    else if (row.purity === "20") bankRateForRow = bankRate20;
+    else if (row.purity === "22") bankRateForRow = bankRate22;
+
+    bankSum += netW * bankRateForRow;
+  });
+
+  // FIXED VALUE FORMATTING
+  totals.grossWeight = +totals.grossWeight.toFixed(3);
+  totals.estimatedWeight = +totals.estimatedWeight.toFixed(3);
+  totals.netWeight = +totals.netWeight.toFixed(3);
+  totals.appraisedValue = +totals.appraisedValue.toFixed(3);
+  totals.bankAppraisedTotal = +bankSum.toFixed(3);
+
+  // --- NEW: STORE UNIQUE VALUES AS CSV ---
+  totals.uniquePurities = Array.from(puritySet).sort().join(", ");
+  totals.uniqueMarketRates = Array.from(marketRateSet).join(", ");
+
+  return totals;
+};
+
 
   const downloadPDF = () => {
 
@@ -453,40 +465,62 @@ export default function GoldAppraisalForm() {
           </div>
 
           {/* Basic Information */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
-              <input
-                type="text"
-                name="branch"
-                value={formData.branch}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter branch name"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
-              <input
-                type="date"
-                name="date"
-                value={formData.date}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Paket No</label>
-              <input
-                type="text"
-                name="paketNo"
-                value={formData.paketNo}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Enter paket number"
-              />
-            </div>
-          </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+
+  {/* Branch */}
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+    <input
+      type="text"
+      name="branch"
+      value={formData.branch}
+      onChange={handleInputChange}
+      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+      placeholder="Enter branch name"
+    />
+  </div>
+
+  {/* Date */}
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1">Date</label>
+    <input
+      type="date"
+      name="date"
+      value={formData.date}
+      onChange={handleInputChange}
+      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+    />
+  </div>
+
+  {/* Paket + Polythene stacked */}
+  <div className="flex flex-col gap-4">
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">Paket No</label>
+      <input
+        type="text"
+        name="paketNo"
+        value={formData.paketNo}
+        onChange={handleInputChange}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        placeholder="Enter paket number"
+      />
+    </div>
+
+    <div>
+      <label className="block text-sm font-medium text-gray-700 mb-1">Polythene No</label>
+      <input
+        type="text"
+        name="polytheneNo"
+        value={formData.polytheneNo}
+        onChange={handleInputChange}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+        placeholder="Enter polythene number"
+      />
+    </div>
+  </div>
+
+</div>
+
 
           {/* Customer Details */}
           <div className="grid grid-cols-1 gap-4 mb-6">
@@ -868,11 +902,12 @@ function PrintableForm({ formData, rows, totals }) {
             </div>
 
             {/* Right Section */}
-            <div className="w-[25%] flex justify-end items-start p-2">
-              <div className="border border-black" style={{ width: '140px', height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
+            <div className="w-[25%] flex-col justify-end items-start p-2">
+              <div className="border border-black" style={{ width: '140px', height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column' }}>
                 <span className="font-bold" style={{ fontSize: '13px' }}>Paket No :</span>
                 <span className="font-bold mt-2" style={{ fontSize: '14px' }}>{formData.paketNo}</span>
               </div>
+              <div className='mt-2 font-bold text-[13px]'>Polythene No : {formData.polytheneNo}</div>
             </div>
           </div>
 
@@ -1001,12 +1036,12 @@ function PrintableForm({ formData, rows, totals }) {
                 <tr style={{ height: '22px' }}>
                   <td colSpan="2" className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>Total :</td>
                   <td className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>{totals.noOfOrnaments.toFixed(0)}</td>
-                  <td className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>{totals.grossWeight.toFixed(2)}</td>
-                  <td className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>{totals.estimatedWeight.toFixed(2)}</td>
-                  <td className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>{totals.netWeight.toFixed(2)}</td>
-                  <td className="border border-black"></td>
-                  <td className="border border-black"></td>
-                  <td className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>{totals.appraisedValue.toFixed(2)}</td>
+                  <td className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>{totals.grossWeight.toFixed(3)}</td>
+                  <td className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>{totals.estimatedWeight.toFixed(3)}</td>
+                  <td className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>{totals.netWeight.toFixed(3)}</td>
+                  <td className="border border-black font-bold">{totals.uniquePurities}</td>
+                  <td className="border border-black font-bold">{totals.uniqueMarketRates}</td>
+                  <td className="border border-black text-center font-bold" style={{ fontSize: '13px' }}>{totals.appraisedValue.toFixed(3)}</td>
                   <td className="border border-black"></td>
                 </tr>
               </tbody>
@@ -1037,10 +1072,10 @@ function PrintableForm({ formData, rows, totals }) {
           {/* Bottom Section */}
           <div className="p-3 space-y-2 border-t border-black" style={{ flexShrink: 0 }}>
             <div className="flex items-center" style={{ fontSize: '13px' }}>
-              <span className="font-bold">Market Value for above Gold @100% is ₹ {totals.appraisedValue.toFixed(2) | '_______________'}</span>
+              <span className="font-bold">Market Value for above Gold @100% is ₹ {totals.appraisedValue.toFixed(3) | '_______________'}</span>
             </div>
             <div className="flex items-center" style={{ fontSize: '13px' }}>
-              <span className="font-bold">75% of Market value is. ₹   {(Math.round(totals.appraisedValue * formData.marketValuePercent / 100)) || '_______________'}</span>
+              <span className="font-bold">{formData.marketValuePercent} % of Market value is. ₹   {(Math.round(totals.appraisedValue * formData.marketValuePercent / 100)) || '_______________'}</span>
             </div>
             <div className="flex items-center" style={{ fontSize: '13px' }}>
               <span className="font-bold">Advanced value as per banks Norma ₹ {totals.bankAppraisedTotal || '_______________'}</span>
@@ -1071,7 +1106,7 @@ function PrintableForm({ formData, rows, totals }) {
               <h3 className="text-center font-bold" style={{ fontSize: '14px' }}>Valuation Certificate</h3>
               <p className="leading-relaxed" style={{ fontSize: '11px', lineHeight: '1.2' }}>
                 I hereby certify that I have tested/appraised the above & the gross weight of the article, net weight of Gold, Carat
-                purity of fineness, rate per gram & market value shown against the ornaments mentioned is Rs. <span className='font-bold'>{formData.certificateAmount || '_______________'}</span> the best of my knowledge correct & in order.
+                purity of fineness, rate per gram & market value shown against the ornaments mentioned is Rs. <span className='font-bold'>{Math.round(totals.appraisedValue)    || '_______________'}</span> the best of my knowledge correct & in order.
               </p>
               <p className="font-bold" style={{ fontSize: '15px' }}>I hereby declare that</p>
               <p style={{ fontSize: '11px', lineHeight: '1.2' }}>a)The information furnished above is true & correct to the best of my knowledge and belief.</p>
